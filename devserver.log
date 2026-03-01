@@ -1,0 +1,67 @@
+
+> gymforge@1.0.0 dev
+> next dev
+
+  ▲ Next.js 14.2.30
+  - Local:        http://localhost:3006
+
+ ✓ Starting...
+ ✓ Ready in 2.4s
+ ○ Compiling /log/[sessionId] ...
+ ✓ Compiled /log/[sessionId] in 7s (600 modules)
+ GET / 200 in 7336ms
+ GET /log/test-session 200 in 7722ms
+ ✓ Compiled in 524ms (307 modules)
+ ✓ Compiled in 353ms (307 modules)
+ ✓ Compiled in 350ms (307 modules)
+ ✓ Compiled in 210ms (307 modules)
+ ✓ Compiled in 236ms (307 modules)
+ ✓ Compiled in 225ms (307 modules)
+ ✓ Compiled in 607ms (287 modules)
+ ✓ Compiled in 199ms (301 modules)
+ ✓ Compiled in 200ms (287 modules)
+ ✓ Compiled in 164ms (301 modules)
+ ✓ Compiled in 170ms (301 modules)
+ ✓ Compiled in 223ms (301 modules)
+ ✓ Compiled in 264ms (301 modules)
+ ✓ Compiled in 265ms (301 modules)
+ ✓ Compiled in 179ms (301 modules)
+ ✓ Compiled in 213ms (301 modules)
+ ✓ Compiled in 780ms (301 modules)
+ ✓ Compiled in 378ms (301 modules)
+ ✓ Compiled in 221ms (301 modules)
+ ✓ Compiled in 347ms (301 modules)
+ ✓ Compiled in 768ms (301 modules)
+ ✓ Compiled in 567ms (301 modules)
+ ✓ Compiled in 455ms (301 modules)
+ ✓ Compiled in 460ms (301 modules)
+ ✓ Compiled in 326ms (301 modules)
+ ✓ Compiled in 806ms (301 modules)
+ ✓ Compiled in 281ms (301 modules)
+ ✓ Compiled in 615ms (301 modules)
+ ✓ Compiled in 629ms (301 modules)
+ ✓ Compiled in 483ms (301 modules)
+ ✓ Compiled in 354ms (301 modules)
+ ✓ Compiled in 409ms (301 modules)
+ ✓ Compiled in 876ms (301 modules)
+ ✓ Compiled in 528ms (301 modules)
+ ✓ Compiled in 444ms (301 modules)
+ ✓ Compiled in 305ms (301 modules)
+ ✓ Compiled in 233ms (301 modules)
+ ✓ Compiled in 1309ms (215 modules)
+ ✓ Compiled in 1449ms (215 modules)
+ ✓ Compiled in 267ms (215 modules)
+ ✓ Compiled in 251ms (215 modules)
+ ✓ Compiled in 223ms (215 modules)
+ ✓ Compiled in 287ms (215 modules)
+  ▲ Next.js 14.2.30
+  - Local:        http://localhost:3001
+
+ ✓ Starting...
+ ✓ Ready in 6.4s
+  ▲ Next.js 14.2.30
+  - Local:        http://localhost:3001
+
+ ✓ Starting...
+ ✓ Ready in 3.2s
+   Reload env: .env.local

@@ -1,0 +1,23 @@
+INSERT INTO exercises (user_id, name, muscle_group, type, sets, rep_range_min, rep_range_max, last_weight, last_reps, suggested_weight, is_active)
+VALUES
+  (auth.uid(), 'Développé couché', 'chest', 'compound', 4, 6, 10, 0, 8, 0, true),
+  (auth.uid(), 'Développé incliné', 'chest', 'compound', 3, 8, 12, 0, 10, 0, true),
+  (auth.uid(), 'Élévations latérales', 'shoulders', 'isolation', 4, 12, 16, 0, 14, 0, true),
+  (auth.uid(), 'Presses militaires', 'shoulders', 'compound', 3, 8, 12, 0, 10, 0, true),
+  (auth.uid(), 'Dips', 'arms', 'compound', 3, 8, 12, 0, 10, 0, true),
+  (auth.uid(), 'Pushdowns triceps', 'arms', 'isolation', 3, 12, 16, 0, 14, 0, true),
+  (auth.uid(), 'Tractions', 'back', 'compound', 4, 6, 10, 0, 8, 0, true),
+  (auth.uid(), 'Rowing haltères', 'back', 'compound', 4, 8, 12, 0, 10, 0, true),
+  (auth.uid(), 'Face pulls', 'shoulders', 'isolation', 3, 15, 20, 0, 15, 0, true),
+  (auth.uid(), 'Curl haltères', 'arms', 'isolation', 3, 10, 14, 0, 12, 0, true),
+  (auth.uid(), 'Curl marteau', 'arms', 'isolation', 3, 10, 14, 0, 12, 0, true),
+  (auth.uid(), 'Développé incliné haltères', 'chest', 'compound', 4, 8, 12, 0, 10, 0, true),
+  (auth.uid(), 'Écarté incliné', 'chest', 'isolation', 3, 12, 16, 0, 14, 0, true),
+  (auth.uid(), 'Pull-over', 'back', 'isolation', 3, 12, 16, 0, 14, 0, true),
+  (auth.uid(), 'Développé épaules haltères', 'shoulders', 'compound', 3, 8, 12, 0, 10, 0, true),
+  (auth.uid(), 'Oiseau', 'shoulders', 'isolation', 3, 12, 16, 0, 14, 0, true),
+  (auth.uid(), 'Crunch', 'abs', 'isolation', 3, 15, 20, 0, 15, 0, true),
+  (auth.uid(), 'Relevés de jambes', 'abs', 'isolation', 3, 12, 16, 0, 14, 0, true),
+  (auth.uid(), 'Planche', 'abs', 'isolation', 3, 30, 60, 0, 30, 0, true),
+  (auth.uid(), 'Squat gobelet', 'legs', 'compound', 2, 12, 15, 0, 12, 0, true),
+  (auth.uid(), 'Romanian deadlift', 'legs', 'compound', 2, 10, 12, 0, 10, 0, true);
