@@ -69,6 +69,29 @@ function normalizeMuscleKey(exercise: Exercise | undefined): (typeof MUSCLE_GROU
   return null;
 }
 
+function getWeekDotStyle(session: WorkoutSession | null, todayIso: string, iso: string): string {
+  const isToday = iso === todayIso;
+  const highlight = isToday ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-[#141414]' : '';
+
+  if (!session) {
+    return `border border-white/50 bg-transparent ${highlight}`.trim();
+  }
+
+  if (session.status === 'rest') {
+    return `bg-[#555555] ${highlight}`.trim();
+  }
+
+  if (session.status === 'done' || session.status === 'partial') {
+    return `bg-emerald-500 ${highlight}`.trim();
+  }
+
+  if (session.scheduled_date < todayIso) {
+    return `bg-red-500 ${highlight}`.trim();
+  }
+
+  return `border border-white/50 bg-transparent ${highlight}`.trim();
+}
+
 export default function TodayPage(): JSX.Element {
   const router = useRouter();
   const [state, setState] = useState<DashboardState>({
@@ -160,6 +183,20 @@ export default function TodayPage(): JSX.Element {
   }, [state.weekLogs, state.weekSessions, todayIso]);
 
   const maxBarValue = Math.max(1, ...weeklyBars.map((item) => item.setCount));
+  const weekDots = useMemo(() => {
+    const weekStart = getWeekStart(new Date(`${todayIso}T12:00:00`));
+    return Array.from({ length: 7 }).map((_, index: number) => {
+      const date = new Date(weekStart);
+      date.setDate(date.getDate() + index);
+      const iso = date.toISOString().slice(0, 10);
+
+      return {
+        iso,
+        label: formatDayLabel(iso),
+        session: state.weekSessions.find((session: WorkoutSession) => session.scheduled_date === iso) ?? null,
+      };
+    });
+  }, [state.weekSessions, todayIso]);
   const heatmapValues = useMemo(() => {
     return MUSCLE_GROUPS.map((group) => {
       const sets = state.weekLogs.reduce((sum: number, log: ExerciseLog) => {
@@ -260,6 +297,23 @@ export default function TodayPage(): JSX.Element {
       <section className="surface-card p-4">
         <div className="mb-4 flex items-center justify-between">
           <p className="text-sm font-medium text-white">Cette semaine</p>
+          <p className="text-xs text-[#a1a1a1]">Vue rapide</p>
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {weekDots.map((item) => (
+            <div key={item.iso} className="flex flex-col items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#2a2a2a] bg-[#141414]">
+                <span className={`h-3.5 w-3.5 rounded-full ${getWeekDotStyle(item.session, todayIso, item.iso)}`} />
+              </div>
+              <span className={`text-[11px] ${item.iso === todayIso ? 'text-white' : 'text-[#a1a1a1]'}`}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="surface-card p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm font-medium text-white">Séries cette semaine</p>
           <p className="text-xs text-[#a1a1a1]">Séries réalisées</p>
         </div>
         <div className="grid grid-cols-7 gap-2">

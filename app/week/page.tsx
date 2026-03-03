@@ -13,12 +13,13 @@ import { SkeletonCard, SkeletonText } from '@/components/ui/Skeleton';
 import { getTodayISO, getWeekId, getWeekStart } from '@/lib/dateUtils';
 import { getFrenchDayLabel, normalizeTrainingDay, SESSION_LABELS } from '@/lib/program-generator';
 import { getUser, supabase } from '@/lib/supabase';
-import { DayOfWeek, Exercise, ExerciseLog, WorkoutSession } from '@/types';
+import { DayOfWeek, Exercise, ExerciseLog, UserSettings, WorkoutSession } from '@/types';
 
 interface WeekPageState {
   sessions: WorkoutSession[];
   exercises: Exercise[];
   logs: ExerciseLog[];
+  settings: UserSettings | null;
   hasTemplates: boolean;
   isPastWeekWithoutData: boolean;
 }
@@ -148,6 +149,7 @@ export default function WeekPage(): JSX.Element {
     sessions: [],
     exercises: [],
     logs: [],
+    settings: null,
     hasTemplates: false,
     isPastWeekWithoutData: false,
   });
@@ -179,15 +181,16 @@ export default function WeekPage(): JSX.Element {
       const weekId = getWeekId(monday);
       const currentMondayIso = getWeekStart(new Date()).toISOString().slice(0, 10);
 
-      const [{ data: templateRows }, { data: existingPlan }] = await Promise.all([
+      const [{ data: templateRows }, { data: existingPlan }, { data: settingsRow }] = await Promise.all([
         supabase.from('workout_templates').select('id').eq('user_id', user.id).order('day_position', { ascending: true }),
         supabase.from('weekly_plans').select('id').eq('user_id', user.id).eq('week_id', weekId).maybeSingle(),
+        supabase.from('user_settings').select('*').eq('user_id', user.id).maybeSingle(),
       ]);
 
       const hasTemplates = (templateRows ?? []).length > 0;
       if (!hasTemplates) {
         if (active) {
-          setState({ sessions: [], exercises: [], logs: [], hasTemplates: false, isPastWeekWithoutData: false });
+          setState({ sessions: [], exercises: [], logs: [], settings: (settingsRow ?? null) as UserSettings | null, hasTemplates: false, isPastWeekWithoutData: false });
           setSelectedSessionId('');
           setIsLoading(false);
         }
@@ -216,6 +219,7 @@ export default function WeekPage(): JSX.Element {
         sessions,
         exercises: (exerciseRows ?? []) as Exercise[],
         logs: (logRows ?? []) as ExerciseLog[],
+        settings: (settingsRow ?? null) as UserSettings | null,
         hasTemplates: true,
         isPastWeekWithoutData: sessions.length === 0 && weekStart < currentMondayIso,
       });
@@ -260,6 +264,16 @@ export default function WeekPage(): JSX.Element {
       durationMinutes: totalSets * 3,
     };
   }, [selectedSessionLogs]);
+  const estimatedDurationMinutes = useMemo(() => {
+    const restDuration = state.settings?.rest_timer_duration ?? 90;
+    const totalSeconds = selectedExercises.reduce((sum: number, exercise: Exercise) => {
+      const workSeconds = exercise.sets * 45;
+      const restSeconds = Math.max(0, exercise.sets - 1) * restDuration;
+      return sum + workSeconds + restSeconds;
+    }, 120);
+
+    return Math.max(2, Math.round(totalSeconds / 60));
+  }, [selectedExercises, state.settings?.rest_timer_duration]);
 
   const currentWeekOffset = useMemo(() => {
     const currentMonday = new Date(`${getCurrentMonday()}T12:00:00`);
@@ -444,6 +458,10 @@ export default function WeekPage(): JSX.Element {
                       </span>
                     </div>
                   ))}
+                </div>
+
+                <div className="rounded-2xl border border-[#2a2a2a] bg-[#1c1c1c] px-3 py-3 text-sm text-[#a1a1a1]">
+                  ⏱ Durée estimée : ~{estimatedDurationMinutes} min
                 </div>
 
                 {selectedSession.status === 'done' ? (

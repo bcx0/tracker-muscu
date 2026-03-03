@@ -1,25 +1,52 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import Container from '@/components/ui/Container';
 import EmptyState from '@/components/ui/EmptyState';
 import { SkeletonCard, SkeletonText } from '@/components/ui/Skeleton';
 import { getTodayISO, getWeekStart } from '@/lib/dateUtils';
 import { ProgressiveOverloadAnalysis, analyzeExerciseProgress } from '@/lib/progressive-overload';
+import { getMuscleGroupLabel } from '@/lib/program-generator';
 import { getUser, supabase } from '@/lib/supabase';
 import { Exercise, ExerciseLog, UserSettings, WorkoutSession } from '@/types';
 
 interface ProgressState {
   exercises: Exercise[];
   logs: ExerciseLog[];
+  recentLogs: ExerciseLog[];
   settings: UserSettings | null;
   sessions: WorkoutSession[];
 }
 
+const MUSCLE_CHART_CONFIG = [
+  { key: 'chest', label: 'Pecs', color: '#ef4444' },
+  { key: 'back', label: 'Dos', color: '#3b82f6' },
+  { key: 'shoulders', label: 'Épaules', color: '#a855f7' },
+  { key: 'biceps', label: 'Biceps', color: '#f59e0b' },
+  { key: 'triceps', label: 'Triceps', color: '#f97316' },
+  { key: 'abs', label: 'Abdos', color: '#d97706' },
+] as const;
+
+function normalizeMuscleKey(exercise: Exercise | undefined): (typeof MUSCLE_CHART_CONFIG)[number]['key'] | null {
+  if (!exercise) {
+    return null;
+  }
+
+  if (exercise.muscle_group === 'arms') {
+    return getMuscleGroupLabel(exercise.muscle_group, exercise.name) === 'Triceps' ? 'triceps' : 'biceps';
+  }
+
+  if (exercise.muscle_group === 'chest' || exercise.muscle_group === 'back' || exercise.muscle_group === 'shoulders' || exercise.muscle_group === 'biceps' || exercise.muscle_group === 'triceps' || exercise.muscle_group === 'abs') {
+    return exercise.muscle_group;
+  }
+
+  return null;
+}
+
 export default function ProgressionPage(): JSX.Element {
-  const [state, setState] = useState<ProgressState>({ exercises: [], logs: [], settings: null, sessions: [] });
+  const [state, setState] = useState<ProgressState>({ exercises: [], logs: [], recentLogs: [], settings: null, sessions: [] });
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>('');
   const [analysis, setAnalysis] = useState<ProgressiveOverloadAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -39,9 +66,14 @@ export default function ProgressionPage(): JSX.Element {
         return;
       }
 
-      const [{ data: exerciseRows }, { data: logRows }, { data: settingsRow }, { data: sessionRows }] = await Promise.all([
+      const fourWeeksAgo = new Date(`${todayIso}T12:00:00`);
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 27);
+      const fourWeeksAgoIso = fourWeeksAgo.toISOString();
+
+      const [{ data: exerciseRows }, { data: logRows }, { data: recentLogRows }, { data: settingsRow }, { data: sessionRows }] = await Promise.all([
         supabase.from('exercises').select('*').eq('user_id', user.id).eq('is_active', true).order('name', { ascending: true }),
         supabase.from('exercise_logs').select('*').eq('user_id', user.id).order('logged_at', { ascending: true }),
+        supabase.from('exercise_logs').select('*').eq('user_id', user.id).gte('logged_at', fourWeeksAgoIso).order('logged_at', { ascending: true }),
         supabase.from('user_settings').select('*').eq('user_id', user.id).maybeSingle(),
         supabase.from('workout_sessions').select('*').eq('user_id', user.id).order('scheduled_date', { ascending: true }),
       ]);
@@ -54,6 +86,7 @@ export default function ProgressionPage(): JSX.Element {
         setState({
           exercises,
           logs,
+          recentLogs: (recentLogRows ?? []) as ExerciseLog[],
           settings: (settingsRow ?? null) as UserSettings | null,
           sessions: (sessionRows ?? []) as WorkoutSession[],
         });
@@ -66,7 +99,7 @@ export default function ProgressionPage(): JSX.Element {
     return () => {
       active = false;
     };
-  }, []);
+  }, [todayIso]);
 
   useEffect(() => {
     let active = true;
@@ -138,6 +171,20 @@ export default function ProgressionPage(): JSX.Element {
     [state.logs],
   );
   const selectedExercise = state.exercises.find((exercise: Exercise) => exercise.id === selectedExerciseId) ?? null;
+  const exerciseMap = useMemo(
+    () => new Map(state.exercises.map((exercise: Exercise) => [exercise.id, exercise])),
+    [state.exercises],
+  );
+  const muscleVolumeData = useMemo(() => {
+    return MUSCLE_CHART_CONFIG.map((muscle) => ({
+      muscle: muscle.label,
+      totalSets: state.recentLogs.reduce((sum: number, log: ExerciseLog) => {
+        const exercise = exerciseMap.get(log.exercise_id);
+        return normalizeMuscleKey(exercise) === muscle.key ? sum + log.sets : sum;
+      }, 0),
+      color: muscle.color,
+    }));
+  }, [exerciseMap, state.recentLogs]);
 
   const analysisArrow = analysis?.trend === 'up' ? '↑' : analysis?.trend === 'down' ? '↓' : '→';
   const analysisLabel = analysis?.rule === 'A' ? 'Augmentation de poids' : analysis?.rule === 'B' ? 'Maintien' : analysis?.rule === 'C' ? 'Stagnation détectée' : "Pas d'historique";
@@ -233,6 +280,32 @@ export default function ProgressionPage(): JSX.Element {
             <p className="mt-3 text-sm text-[#a1a1a1]">Depuis {analysis.weeksAtWeight} semaine(s) à ce poids</p>
           </div>
         ) : null}
+      </section>
+
+      <section className="surface-card space-y-4 p-4">
+        <div>
+          <p className="text-lg font-bold text-white">Volume par muscle (4 dernières semaines)</p>
+          <p className="text-sm text-[#a1a1a1]">Nombre total de séries par groupe musculaire.</p>
+        </div>
+        <div className="h-[280px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={muscleVolumeData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <CartesianGrid stroke="#2a2a2a" vertical={false} />
+              <XAxis dataKey="muscle" tickLine={false} axisLine={false} stroke="#a1a1a1" />
+              <YAxis tickLine={false} axisLine={false} stroke="#a1a1a1" width={36} allowDecimals={false} />
+              <Tooltip
+                cursor={{ fill: '#141414' }}
+                contentStyle={{ background: '#141414', border: '1px solid #2a2a2a', color: '#ffffff', borderRadius: 16 }}
+                labelStyle={{ color: '#a1a1a1' }}
+              />
+              <Bar dataKey="totalSets" radius={[10, 10, 0, 0]}>
+                {muscleVolumeData.map((entry) => (
+                  <Cell key={entry.muscle} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </section>
 
       <section className="grid grid-cols-2 gap-3">

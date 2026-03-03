@@ -181,6 +181,10 @@ export function getFrenchDayLabel(day: DayOfWeek): string {
 }
 
 export function getSessionTypeSequence(sessionsPerWeek: number): SessionType[] {
+  if (sessionsPerWeek < 2 || sessionsPerWeek > 6) {
+    throw new Error('Le nombre de séances doit être compris entre 2 et 6.');
+  }
+
   switch (sessionsPerWeek) {
     case 2:
       return ['Push', 'Pull'];
@@ -199,9 +203,11 @@ export function getSessionTypeSequence(sessionsPerWeek: number): SessionType[] {
 
 export function assignSessionTypesToTrainingDays(trainingDays: DayOfWeek[], sessionsPerWeek: number): Array<{ day: DayOfWeek; sessionType: SessionType }> {
   const orderedDays = normalizeTrainingDays(trainingDays);
-  const sequence = getSessionTypeSequence(sessionsPerWeek);
+  const effectiveSessionsPerWeek = orderedDays.length;
+  const sequence = getSessionTypeSequence(effectiveSessionsPerWeek);
+  void sessionsPerWeek;
 
-  if (orderedDays.length !== sessionsPerWeek) {
+  if (orderedDays.length !== effectiveSessionsPerWeek) {
     throw new Error('Le nombre de jours sélectionnés doit correspondre au nombre de séances.');
   }
 

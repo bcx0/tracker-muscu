@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Check, ChevronLeft, Maximize2, Trophy, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -15,6 +15,7 @@ import SecondaryButton from '@/components/ui/SecondaryButton';
 import Skeleton, { SkeletonCard, SkeletonText } from '@/components/ui/Skeleton';
 import { calculateE1RM } from '@/lib/calculations';
 import { formatDate, getWeekId } from '@/lib/dateUtils';
+import { getFatigueWarning } from '@/lib/muscle-fatigue';
 import { ProgressiveOverloadAnalysis, analyzeExerciseProgress } from '@/lib/progressive-overload';
 import { getMuscleGroupLabel, SESSION_LABELS } from '@/lib/program-generator';
 import { getUser, supabase } from '@/lib/supabase';
@@ -221,6 +222,7 @@ export default function SessionPage(): JSX.Element {
   const params = useParams();
   const router = useRouter();
   const sessionId = params.sessionId as string;
+  const STORAGE_KEY = `muscu_session_${sessionId}`;
   const [state, setState] = useState<SessionPageState>({ session: null, settings: null, exercises: [], personalRecords: {} });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [summary, setSummary] = useState<SummaryPreview>(INITIAL_SUMMARY);
@@ -229,9 +231,12 @@ export default function SessionPage(): JSX.Element {
   const [animatedSetId, setAnimatedSetId] = useState<string | null>(null);
   const [visiblePrExerciseId, setVisiblePrExerciseId] = useState<string | null>(null);
   const [isGymMode, setIsGymMode] = useState<boolean>(false);
+  const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState<boolean>(false);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState<number>(0);
   const [startedAt] = useState<number>(Date.now());
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
+  const hasCompletedSetsRef = useRef<boolean>(false);
+  const bypassPopStateRef = useRef<boolean>(false);
 
   useEffect(() => {
     let active = true;
@@ -276,7 +281,7 @@ export default function SessionPage(): JSX.Element {
         .sort((a: Exercise, b: Exercise) => currentSession.planned_exercise_ids.indexOf(a.id) - currentSession.planned_exercise_ids.indexOf(b.id));
       const overloadAnalyses = await Promise.all(orderedExercises.map((exercise: Exercise) => analyzeExerciseProgress(exercise.id, user.id)));
 
-      const exerciseDrafts = orderedExercises
+      const exerciseDrafts: ExerciseDraft[] = orderedExercises
         .map((exercise: Exercise, index: number) => {
           const currentExerciseLog = currentSessionLogs.find((log: ExerciseLog) => log.exercise_id === exercise.id);
           const currentExerciseSetLogs = currentExerciseLog ? allSetLogs.filter((setLog: SetLog) => setLog.exercise_log_id === currentExerciseLog.id) : [];
@@ -296,10 +301,28 @@ export default function SessionPage(): JSX.Element {
 
       if (active) {
         const settings = (settingsRow ?? null) as UserSettings | null;
+        let restoredExercises = exerciseDrafts;
+
+        if (typeof window !== 'undefined' && currentSession.status !== 'done') {
+          const savedSession = window.localStorage.getItem(STORAGE_KEY);
+
+          if (savedSession) {
+            try {
+              const parsedExercises = JSON.parse(savedSession) as ExerciseDraft[];
+              if (Array.isArray(parsedExercises)) {
+                restoredExercises = parsedExercises;
+                toast.success('Séance restaurée 🔄');
+              }
+            } catch {
+              window.localStorage.removeItem(STORAGE_KEY);
+            }
+          }
+        }
+
         setState({
           session: currentSession,
           settings,
-          exercises: exerciseDrafts,
+          exercises: restoredExercises,
           personalRecords: recordMap,
         });
         setRestTimer({
@@ -315,7 +338,21 @@ export default function SessionPage(): JSX.Element {
     return () => {
       active = false;
     };
-  }, [sessionId]);
+  }, [sessionId, STORAGE_KEY]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isLoading || !state.session || state.session.status === 'done') {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.exercises));
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [STORAGE_KEY, isLoading, state.exercises, state.session]);
 
   useEffect(() => {
     if (!restTimer.visible) {
@@ -386,11 +423,49 @@ export default function SessionPage(): JSX.Element {
     setCurrentExerciseIndex(Math.max(0, state.exercises.length - 1));
   }, [currentExerciseIndex, state.exercises.length]);
 
+  useEffect(() => {
+    hasCompletedSetsRef.current = state.exercises.some((exerciseDraft: ExerciseDraft) =>
+      exerciseDraft.sets.some((setItem: DraftSet) => setItem.completed),
+    );
+  }, [state.exercises]);
+
+  useEffect(() => {
+    const handlePopState = (): void => {
+      if (bypassPopStateRef.current) {
+        bypassPopStateRef.current = false;
+        return;
+      }
+
+      if (hasCompletedSetsRef.current) {
+        window.history.pushState(null, '', window.location.href);
+        setIsLeaveConfirmOpen(true);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   const completedExercises = useMemo(
     () => state.exercises.filter((exerciseDraft: ExerciseDraft) => isExerciseComplete(exerciseDraft)).length,
     [state.exercises],
   );
+  const hasCompletedSets = useMemo(
+    () => state.exercises.some((exerciseDraft: ExerciseDraft) => exerciseDraft.sets.some((setItem: DraftSet) => setItem.completed)),
+    [state.exercises],
+  );
   const currentExercise = state.exercises[currentExerciseIndex] ?? null;
+  const currentExerciseFatigueWarning = currentExercise
+    ? getFatigueWarning(
+        currentExercise.exercise.name,
+        state.exercises
+          .slice(0, currentExerciseIndex)
+          .filter((exerciseDraft: ExerciseDraft) => exerciseDraft.sets.some((setItem: DraftSet) => setItem.completed))
+          .map((exerciseDraft: ExerciseDraft) => exerciseDraft.exercise.name),
+      )
+    : null;
   const totalExercises = state.exercises.length;
   const allExercisesComplete = totalExercises > 0 && completedExercises === totalExercises;
   const accent = getSessionAccent(state.session?.session_type ?? 'rest');
@@ -517,6 +592,32 @@ export default function SessionPage(): JSX.Element {
     triggerRestTimer();
   };
 
+  const unlockSet = (exerciseId: string, setId: string): void => {
+    setState((previous: SessionPageState) => ({
+      ...previous,
+      exercises: previous.exercises.map((exerciseDraft: ExerciseDraft) => {
+        if (exerciseDraft.exercise.id !== exerciseId) {
+          return exerciseDraft;
+        }
+
+        return {
+          ...exerciseDraft,
+          sets: exerciseDraft.sets.map((setItem: DraftSet) =>
+            setItem.id === setId
+              ? {
+                  ...setItem,
+                  locked: false,
+                  completed: false,
+                }
+              : setItem,
+          ),
+        };
+      }),
+    }));
+
+    toast.success('Série déverrouillée — modifie puis revalide');
+  };
+
   const openSummary = (mode: 'done' | 'partial'): void => {
     const durationMinutes = Math.max(1, Math.round((Date.now() - startedAt) / 60000));
     const completedSetCount = state.exercises.reduce(
@@ -563,6 +664,22 @@ export default function SessionPage(): JSX.Element {
     }
 
     setIsGymMode(false);
+  };
+
+  const handleLeaveAttempt = (): void => {
+    if (!hasCompletedSets) {
+      bypassPopStateRef.current = true;
+      router.back();
+      return;
+    }
+
+    setIsLeaveConfirmOpen(true);
+  };
+
+  const confirmLeaveSession = (): void => {
+    setIsLeaveConfirmOpen(false);
+    bypassPopStateRef.current = true;
+    router.back();
   };
 
   const finishSession = async (): Promise<void> => {
@@ -757,6 +874,7 @@ export default function SessionPage(): JSX.Element {
     }
 
     await exitGymMode();
+    window.localStorage.removeItem(STORAGE_KEY);
     setIsSaving(false);
     toast.success('Séance terminée ! 💪');
     router.push('/today');
@@ -839,10 +957,16 @@ export default function SessionPage(): JSX.Element {
               <div className={`inline-flex rounded-full border px-3 py-1 text-sm font-medium ${getSuggestionChipClasses(currentExercise.overload.chipTone)}`}>
                 {currentExercise.overload.chipLabel}
               </div>
+              {currentExerciseFatigueWarning ? (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+                  {currentExerciseFatigueWarning}
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-3">
               {currentExercise.sets.map((setItem: DraftSet) => (
+                <Fragment key={setItem.id}>
                 <div
                   key={setItem.id}
                   className={[
@@ -886,7 +1010,19 @@ export default function SessionPage(): JSX.Element {
                       ✓
                     </button>
                   </div>
+                  {setItem.completed ? (
+                    <div className="mt-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => unlockSet(currentExercise.exercise.id, setItem.id)}
+                        className="text-xs text-[#a1a1a1] underline"
+                      >
+                        Modifier
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
+                </Fragment>
               ))}
             </div>
           </div>
@@ -967,11 +1103,11 @@ export default function SessionPage(): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] pb-40">
+    <div className="min-h-screen bg-[#0a0a0a] pb-56">
       <header className="sticky top-0 z-20 border-b border-[#2a2a2a] bg-[#0a0a0a]/95 backdrop-blur-sm">
         <div className={`h-1 w-full bg-gradient-to-r ${accent}`} />
         <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-4">
-          <button type="button" onClick={() => router.back()} className="rounded-full border border-[#2a2a2a] p-2 text-white">
+          <button type="button" onClick={handleLeaveAttempt} className="rounded-full border border-[#2a2a2a] p-2 text-white">
             <ChevronLeft size={18} />
           </button>
           <div className="min-w-0 flex-1">
@@ -999,6 +1135,13 @@ export default function SessionPage(): JSX.Element {
 
         {state.exercises.map((exerciseDraft: ExerciseDraft) => {
           const completedSetCount = exerciseDraft.sets.filter((setItem: DraftSet) => setItem.completed).length;
+          const fatigueWarning = getFatigueWarning(
+            exerciseDraft.exercise.name,
+            state.exercises
+              .slice(0, state.exercises.findIndex((item: ExerciseDraft) => item.exercise.id === exerciseDraft.exercise.id))
+              .filter((previousExercise: ExerciseDraft) => previousExercise.sets.some((setItem: DraftSet) => setItem.completed))
+              .map((previousExercise: ExerciseDraft) => previousExercise.exercise.name),
+          );
 
           return (
             <section key={exerciseDraft.exercise.id} className="surface-card space-y-4 p-4">
@@ -1009,6 +1152,11 @@ export default function SessionPage(): JSX.Element {
                   <div className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getSuggestionChipClasses(exerciseDraft.overload.chipTone)}`}>
                     {exerciseDraft.overload.chipLabel}
                   </div>
+                  {fatigueWarning ? (
+                    <div className="mt-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                      {fatigueWarning}
+                    </div>
+                  ) : null}
                   <p className="mt-2 text-sm text-[#555555]">
                     Cible : {exerciseDraft.exercise.sets} séries × {exerciseDraft.exercise.rep_range_min}-{exerciseDraft.exercise.rep_range_max} reps @{' '}
                     {exerciseDraft.suggestion > 0 ? `${exerciseDraft.suggestion} kg` : 'charge libre'}
@@ -1028,6 +1176,7 @@ export default function SessionPage(): JSX.Element {
 
               <div className="space-y-2">
                 {exerciseDraft.sets.map((setItem: DraftSet) => (
+                  <Fragment key={setItem.id}>
                   <div
                     key={setItem.id}
                     className={[
@@ -1068,6 +1217,18 @@ export default function SessionPage(): JSX.Element {
                       <Check size={18} />
                     </button>
                   </div>
+                  {setItem.completed ? (
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => unlockSet(exerciseDraft.exercise.id, setItem.id)}
+                        className="text-xs text-[#a1a1a1] underline"
+                      >
+                        Modifier
+                      </button>
+                    </div>
+                  ) : null}
+                  </Fragment>
                 ))}
               </div>
 
@@ -1083,7 +1244,7 @@ export default function SessionPage(): JSX.Element {
         })}
       </Container>
 
-      <div className="fixed bottom-20 left-0 right-0 z-20 px-4">
+      <div className="fixed bottom-24 left-0 right-0 z-20 px-4">
         <div className="mx-auto flex max-w-md flex-col gap-3 rounded-[24px] border border-[#2a2a2a] bg-[#141414]/95 p-4 backdrop-blur-sm">
           <PrimaryButton fullWidth className={`bg-gradient-to-r ${accent} text-white`} onClick={() => void finishSession()}>
             Terminer la séance
@@ -1130,6 +1291,20 @@ export default function SessionPage(): JSX.Element {
             <SecondaryButton fullWidth onClick={() => setSummary(INITIAL_SUMMARY)}>
               Continuer la séance
             </SecondaryButton>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isLeaveConfirmOpen} onClose={() => setIsLeaveConfirmOpen(false)} title="Quitter la séance ?">
+        <div className="space-y-4">
+          <p className="text-sm text-[#a1a1a1]">Ta progression sera sauvegardée automatiquement.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <SecondaryButton fullWidth onClick={() => setIsLeaveConfirmOpen(false)}>
+              Rester
+            </SecondaryButton>
+            <PrimaryButton fullWidth className="bg-[#ef4444] text-white hover:bg-[#dc2626]" onClick={confirmLeaveSession}>
+              Quitter
+            </PrimaryButton>
           </div>
         </div>
       </Modal>

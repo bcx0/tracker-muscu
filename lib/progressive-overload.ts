@@ -27,6 +27,19 @@ function roundWeight(value: number): number {
   return Math.max(0, Number(value.toFixed(2)));
 }
 
+function getDefaultSuggestedWeight(exercise: Exercise | null): number {
+  return exercise?.type === 'compound' ? 15 : 8;
+}
+
+function getBeginnerDefaults(exercise: Exercise | null): Pick<ProgressiveOverloadAnalysis, 'suggestedWeight' | 'message' | 'chipLabel' | 'chipTone'> {
+  return {
+    suggestedWeight: getDefaultSuggestedWeight(exercise),
+    message: 'Débutant — commence léger 💪',
+    chipLabel: 'Débutant — commence léger 💪',
+    chipTone: 'blue',
+  };
+}
+
 function buildSessionSummary(log: ExerciseLog, sets: SetLog[], exercise: Exercise): SessionSetSummary {
   const orderedSets = [...sets].sort((a: SetLog, b: SetLog) => a.set_number - b.set_number);
   const relevantSets = orderedSets.length > 0 ? orderedSets : [];
@@ -77,10 +90,7 @@ export async function analyzeExerciseProgress(exerciseId: string, userId: string
     return {
       rule: 'D',
       trend: 'flat',
-      suggestedWeight: 0,
-      message: 'Première fois — choisis un poids avec lequel tu peux faire des répétitions propres.',
-      chipLabel: 'Nouveau — commence léger',
-      chipTone: 'gray',
+      ...getBeginnerDefaults(exercise),
       currentWeight: 0,
       weeksAtWeight: 0,
     };
@@ -99,10 +109,7 @@ export async function analyzeExerciseProgress(exerciseId: string, userId: string
     return {
       rule: 'D',
       trend: 'flat',
-      suggestedWeight: 0,
-      message: `Première fois — choisis un poids avec lequel tu peux faire ${exercise.rep_range_min} reps proprement.`,
-      chipLabel: 'Nouveau — commence léger',
-      chipTone: 'gray',
+      ...getBeginnerDefaults(exercise),
       currentWeight: 0,
       weeksAtWeight: 0,
     };
