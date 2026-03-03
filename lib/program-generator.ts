@@ -181,35 +181,20 @@ export function getFrenchDayLabel(day: DayOfWeek): string {
 }
 
 export function getSessionTypeSequence(sessionsPerWeek: number): SessionType[] {
-  if (sessionsPerWeek < 2 || sessionsPerWeek > 6) {
-    throw new Error('Le nombre de séances doit être compris entre 2 et 6.');
-  }
-
   switch (sessionsPerWeek) {
-    case 2:
-      return ['Push', 'Pull'];
-    case 3:
-      return ['Push', 'Pull', 'Abs'];
-    case 4:
-      return ['Push', 'Pull', 'UpperChest_Shoulders', 'Full_Upper'];
-    case 5:
-      return ['Push', 'Pull', 'UpperChest_Shoulders', 'Full_Upper', 'Abs'];
-    case 6:
-      return ['Push', 'Pull', 'UpperChest_Shoulders', 'Full_Upper', 'Abs_Arms', 'Abs'];
-    default:
-      throw new Error('Le nombre de séances doit être compris entre 2 et 6.');
+    case 2: return ['Push', 'Pull'];
+    case 3: return ['Push', 'Pull', 'Abs'];
+    case 4: return ['Push', 'Pull', 'UpperChest_Shoulders', 'Full_Upper'];
+    case 5: return ['Push', 'Pull', 'UpperChest_Shoulders', 'Full_Upper', 'Abs'];
+    case 6: return ['Push', 'Pull', 'UpperChest_Shoulders', 'Full_Upper', 'Abs_Arms', 'Abs'];
+    default: return ['Push', 'Pull', 'UpperChest_Shoulders', 'Full_Upper', 'Abs_Arms', 'Abs'];
   }
 }
 
 export function assignSessionTypesToTrainingDays(trainingDays: DayOfWeek[], sessionsPerWeek: number): Array<{ day: DayOfWeek; sessionType: SessionType }> {
   const orderedDays = normalizeTrainingDays(trainingDays);
-  const effectiveSessionsPerWeek = orderedDays.length;
-  const sequence = getSessionTypeSequence(effectiveSessionsPerWeek);
+  const sequence = getSessionTypeSequence(orderedDays.length);
   void sessionsPerWeek;
-
-  if (orderedDays.length !== effectiveSessionsPerWeek) {
-    throw new Error('Le nombre de jours sélectionnés doit correspondre au nombre de séances.');
-  }
 
   return orderedDays.map((day: DayOfWeek, index: number) => ({
     day,
@@ -291,6 +276,8 @@ export function buildWorkoutTemplates(userId: string, trainingDays: DayOfWeek[],
     } else if (sessionType === 'Abs') {
       exerciseNames = getAbsExerciseNames();
     }
+
+    void pushIndex;
 
     return {
       id: uuidv4(),

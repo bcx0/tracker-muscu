@@ -98,6 +98,7 @@ export default function SettingsPage(): JSX.Element {
   const [restTimerDuration, setRestTimerDuration] = useState<number>(90);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [resetOpen, setResetOpen] = useState<boolean>(false);
+  const [resetProgramOpen, setResetProgramOpen] = useState<boolean>(false);
   const [isAddOpen, setIsAddOpen] = useState<boolean>(false);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Exercise | null>(null);
@@ -218,7 +219,7 @@ export default function SettingsPage(): JSX.Element {
     setState((previous: SettingsState) => ({ ...previous, exercises: (exerciseRows ?? []) as Exercise[] }));
   };
 
-  const generateProgram = async (): Promise<void> => {
+  const generateProgram = async (showSuccessToast = true): Promise<void> => {
     if (!isSelectionValid) {
       toast.error('Le nombre de jours doit correspondre au nombre de séances.');
       return;
@@ -253,8 +254,67 @@ export default function SettingsPage(): JSX.Element {
     }
 
     await refreshExercises();
-    toast.success('Programme généré.');
+    if (showSuccessToast) {
+      toast.success('Programme généré.');
+    }
     router.push('/today');
+  };
+
+  const handleResetProgram = async (): Promise<void> => {
+    if (!state.userId) {
+      return;
+    }
+
+    setIsGenerating(true);
+
+    const { error: workoutSessionsError } = await supabase.from('workout_sessions').delete().eq('user_id', state.userId);
+    if (workoutSessionsError) {
+      setIsGenerating(false);
+      toast.error(workoutSessionsError.message);
+      return;
+    }
+
+    const { error: exerciseLogsError } = await supabase.from('exercise_logs').delete().eq('user_id', state.userId);
+    if (exerciseLogsError) {
+      setIsGenerating(false);
+      toast.error(exerciseLogsError.message);
+      return;
+    }
+
+    const { error: setLogsError } = await supabase.from('set_logs').delete().eq('user_id', state.userId);
+    if (setLogsError) {
+      setIsGenerating(false);
+      toast.error(setLogsError.message);
+      return;
+    }
+
+    const { error: workoutTemplatesError } = await supabase.from('workout_templates').delete().eq('user_id', state.userId);
+    if (workoutTemplatesError) {
+      setIsGenerating(false);
+      toast.error(workoutTemplatesError.message);
+      return;
+    }
+
+    const { error: exercisesError } = await supabase.from('exercises').delete().eq('user_id', state.userId);
+    if (exercisesError) {
+      setIsGenerating(false);
+      toast.error(exercisesError.message);
+      return;
+    }
+
+    const { error: weeklyPlansError } = await supabase.from('weekly_plans').delete().eq('user_id', state.userId);
+    if (weeklyPlansError) {
+      setIsGenerating(false);
+      toast.error(weeklyPlansError.message);
+      return;
+    }
+
+    setState((previous: SettingsState) => ({ ...previous, exercises: [] }));
+    setResetProgramOpen(false);
+    setIsGenerating(false);
+
+    await generateProgram(false);
+    toast.success('Programme réinitialisé ✅');
   };
 
   const saveExercise = async (): Promise<void> => {
@@ -468,6 +528,9 @@ export default function SettingsPage(): JSX.Element {
           <SecondaryButton fullWidth onClick={() => void persistSettings(state.settings?.setup_complete ?? false)}>
             Enregistrer sans régénérer
           </SecondaryButton>
+          <SecondaryButton fullWidth className="border-red-500/30 text-red-300 hover:border-red-400" onClick={() => setResetProgramOpen(true)}>
+            Réinitialiser le programme
+          </SecondaryButton>
         </div>
       </section>
 
@@ -625,6 +688,19 @@ export default function SettingsPage(): JSX.Element {
               Confirmer
             </PrimaryButton>
             <SecondaryButton fullWidth onClick={() => setResetOpen(false)}>
+              Annuler
+            </SecondaryButton>
+          </div>
+        </div>
+      </Modal>
+      <Modal isOpen={resetProgramOpen} onClose={() => setResetProgramOpen(false)} title="Supprimer toutes les données du programme ?">
+        <div className="space-y-4">
+          <p className="text-sm text-[#a1a1a1]">Cette action supprime toutes les données du programme avant de le régénérer immédiatement.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <PrimaryButton fullWidth onClick={() => void handleResetProgram()} disabled={isGenerating}>
+              {isGenerating ? 'Réinitialisation...' : 'Confirmer'}
+            </PrimaryButton>
+            <SecondaryButton fullWidth onClick={() => setResetProgramOpen(false)} disabled={isGenerating}>
               Annuler
             </SecondaryButton>
           </div>
