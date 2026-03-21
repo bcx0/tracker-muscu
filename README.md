@@ -1,73 +1,153 @@
-# ForgeOS
+# ForgeOS — Tracker de musculation personnel
 
-ForgeOS est une application web personnelle de suivi fitness pens�e pour un athl�te solo en home gym. L'application met la s�ance du jour au centre, applique des suggestions d�terministes de progression et affiche en permanence la streak, le volume hebdomadaire et une recommandation coach unique.
+![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?logo=typescript) ![Supabase](https://img.shields.io/badge/Supabase-Auth+DB-3ECF8E?logo=supabase) ![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38BDF8?logo=tailwindcss) ![Recharts](https://img.shields.io/badge/Recharts-visualisation-red)
 
-## Stack
+Application web mobile-first de suivi d'entraînement musculaire pour athlètes solo en home gym. Planifie automatiquement les séances hebdomadaires, calcule la progression via e1RM (formule Epley), affiche le volume par groupe musculaire et gamifie l'adhérence au programme.
 
-- Next.js 14 App Router
-- TypeScript strict
-- Tailwind CSS
-- Supabase Auth + PostgreSQL
-- Recharts
-- react-hot-toast
-- uuid
+---
 
-## Installation locale
+## Stack technique
 
-1. Copier `.env.local.example` vers `.env.local`
-2. Renseigner `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-3. Ex�cuter `npm install`
-4. Appliquer le sch�ma SQL dans Supabase avec `supabase/schema.sql`
-5. Ex�cuter `npm run dev`
+- **Framework** — Next.js 14 (App Router)
+- **Base de données** — Supabase (PostgreSQL + Auth + Row Level Security)
+- **Style** — Tailwind CSS 3.4 (dark mode natif)
+- **Graphiques** — Recharts
+- **Icônes** — Lucide React
+- **Notifications** — React Hot Toast
 
-## Structure
+---
 
-- `app/` : routes App Router (`/today`, `/week`, `/session/[sessionId]`, `/progress`, `/exercises`, `/settings`, `/auth`)
-- `components/` : navigation, garde d'authentification, design system UI
-- `lib/` : logique m�tier pure, helpers de dates, optimisation, gamification, client Supabase
-- `types/` : types TypeScript partag�s
-- `supabase/` : sch�ma SQL et seed de r�f�rence
+## Prérequis
 
-## Flux principal
+- Node.js ≥ 18
+- Compte Supabase
 
-1. Connexion ou cr�ation de compte sur `/auth`
-2. Setup initial sur `/settings`
-3. G�n�ration du programme hebdomadaire fixe sur 5 jours
-4. Consultation de la s�ance du jour sur `/today`
-5. Saisie de s�ance sur `/session/[sessionId]`
-6. Analyse de progression sur `/progress`
+---
 
-## Logique m�tier
+## Installation
 
-- e1RM : formule d'Epley arrondie � 2 d�cimales
-- Suggestions : progression d�terministe bas�e sur les 3 derniers logs et le RIR
-- Streak : `done` et `partial` prolongent, `abandoned` casse, `rest` n'interrompt pas
-- Volume : suivi par muscle avec cibles min/max visibles sur le dashboard et la progression
+```bash
+git clone <repo-url>
+cd tracker-muscu
+npm install
+cp .env.local.example .env.local
+# Remplir les variables d'environnement
+```
 
-## Sch�ma Supabase
+Appliquer le schéma Supabase :
 
-Tables principales :
-- `user_settings`
-- `exercises`
-- `workout_templates`
-- `weekly_plans`
-- `workout_sessions`
-- `exercise_logs`
-- `muscle_volume_cache`
+```bash
+# Via le dashboard Supabase SQL Editor ou la CLI Supabase
+# Exécuter le contenu de supabase/schema.sql
+```
 
-Les politiques RLS limitent l'acc�s � l'utilisateur propri�taire via `auth.uid() = user_id`.
+---
 
-## Donn�es par d�faut
+## Variables d'environnement
 
-La V1 utilise un template fixe de 5 s�ances :
-- Push
-- Pull
-- UpperChest
-- ShouldersArms
-- AbsLegs
+| Variable | Description | Requis |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL du projet Supabase | ✅ |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé publique (anon) Supabase | ✅ |
 
-Les exercices par d�faut sont inject�s au premier setup si la biblioth�que est vide.
+---
 
-## Utilisation mobile
+## Lancement en développement
 
-L'interface est mobile-first � partir de 375px, avec un conteneur centr� `max-w-md` sur desktop, une navigation basse fixe et des cartes condens�es pour logguer une s�ance rapidement.
+```bash
+npm run dev
+```
+
+Application disponible sur [http://localhost:3000](http://localhost:3000).
+
+---
+
+## Structure des dossiers
+
+```
+tracker-muscu/
+├── app/
+│   ├── auth/           # Connexion / inscription
+│   ├── onboarding/     # Paramétrage initial (niveau, objectif, planning)
+│   ├── today/          # Dashboard du jour — séance en cours
+│   ├── week/           # Planning de la semaine
+│   ├── session/[id]/   # Logger une séance (exercices, séries, poids, RIR)
+│   ├── progress/       # Graphiques de progression
+│   ├── exercises/      # Bibliothèque d'exercices personnels
+│   ├── rapport/        # Rapport hebdomadaire
+│   └── settings/       # Paramètres utilisateur
+├── components/
+│   ├── AuthGuard.tsx
+│   ├── BottomNav.tsx
+│   └── ui/             # Design system (Badge, Card, Modal, ProgressBar…)
+├── lib/
+│   ├── calculations.ts       # Formule e1RM (Epley)
+│   ├── suggestion.ts         # Progression déterministe (3 derniers logs + RIR)
+│   ├── gamification.ts       # Points, niveaux, streak
+│   ├── muscle-fatigue.ts     # Fatigue musculaire estimée
+│   ├── program-generator.ts  # Génération automatique du programme
+│   └── weeklyReport.ts       # Rapport hebdomadaire
+├── supabase/
+│   ├── schema.sql       # Schéma complet de la base de données
+│   └── migrations/
+└── types/
+    └── index.ts         # Types TypeScript partagés
+```
+
+---
+
+## Fonctionnalités principales
+
+- **Dashboard quotidien** : séance du jour avec groupes musculaires et statut
+- **Log de séance** : poids, reps, séries, RIR → e1RM calculé automatiquement (formule Epley)
+- **Progression déterministe** : suggestions basées sur les 3 derniers logs et le RIR
+- **Volume hebdomadaire** : suivi par groupe musculaire avec cibles min/max visibles
+- **Génération de programme** : planification automatique des semaines d'entraînement
+- **Gamification** : points par séance, niveaux, streak (interrompu uniquement par "abandonné")
+- **Rapports** : insights hebdomadaires et tendances de progression
+- **Bibliothèque d'exercices** : gestion personnelle des exercices
+- **Onboarding** : paramétrage du niveau, objectif et jours d'entraînement
+
+---
+
+## Programme par défaut (5 séances)
+
+| Séance | Groupes ciblés |
+|---|---|
+| Push | Pectoraux, épaules, triceps |
+| Pull | Dos, biceps |
+| UpperChest | Pectoraux hauts, épaules |
+| ShouldersArms | Épaules, bras |
+| AbsLegs | Abdos, jambes |
+
+---
+
+## Schéma de base de données (Supabase)
+
+| Table | Rôle |
+|---|---|
+| `user_settings` | Préférences (sessions/semaine, jours, objectif, niveau) |
+| `exercises` | Bibliothèque d'exercices personnelle |
+| `workout_templates` | Templates de séances |
+| `weekly_plans` | Plannings hebdomadaires |
+| `workout_sessions` | Séances (statut: upcoming / done / partial / abandoned / rest) |
+| `exercise_logs` | Logs d'exercices (poids, reps, séries, RIR, e1RM) |
+| `muscle_volume_cache` | Cache du volume hebdomadaire par groupe musculaire |
+
+Toutes les tables sont protégées par RLS — accès limité aux données de l'utilisateur connecté.
+
+---
+
+## Déploiement
+
+```bash
+npm run build
+```
+
+Vercel recommandé. Configurer les variables d'environnement Supabase dans le dashboard Vercel.
+
+---
+
+## Statut du projet
+
+**MVP** — Application fonctionnelle en usage personnel actif.
